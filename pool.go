@@ -35,6 +35,7 @@ type CaptchaPool struct {
 	refresh         bool
 	refreshInterval time.Duration
 	ttl             time.Duration
+	maxRetry        int
 }
 
 // Creates a new captcha pool with given options
@@ -42,7 +43,7 @@ type CaptchaPool struct {
 func New(solve func() (string, error), options *Options) *CaptchaPool {
 	deque := new(deque.Deque[Captcha])
 	deque.SetBaseCap(options.Count)
-
+	
 	newPool := &CaptchaPool{
 		ctx:             context.Background(),
 		pool:            deque,
@@ -51,6 +52,7 @@ func New(solve func() (string, error), options *Options) *CaptchaPool {
 		refresh:         options.Refresh,
 		refreshInterval: options.RefreshInterval,
 		ttl:             options.TTL,
+		maxRetry:        3,
 	}
 	newPool.cond = sync.NewCond(&newPool.mu)
 	return newPool
@@ -97,15 +99,19 @@ func (c *CaptchaPool) GetToken() string {
 
 // Runs captcha solver and pushes token to pool if successful
 func (c *CaptchaPool) solveCaptcha() {
-	token, err := c.solve()
-	if err != nil {
+	for range c.maxRetry {
+		token, err := c.solve()
+		if err != nil {
+			time.Sleep(time.Second)
+			continue
+		}
+		c.push(Captcha{
+			created: time.Now(),
+			ttl:     c.ttl,
+			token:   token,
+		})
 		return
 	}
-	c.push(Captcha{
-		created: time.Now(),
-		ttl:     c.ttl,
-		token:   token,
-	})
 }
 
 // Internal function to safely push a new captcha to pool
@@ -132,7 +138,7 @@ func (c *CaptchaPool) pop() Captcha {
 		if time.Now().After(cap.created.Add(cap.ttl)) {
 			c.pool.PopFront()
 		} else {
-			break 
+			break
 		}
 	}
 	if c.pool.Len() == 0 {
