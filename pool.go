@@ -59,23 +59,12 @@ func New(solve func() (string, error), options *Options) *CaptchaPool {
 // Start solving captchas with specified configuration
 // Solved captchas are added to the pool
 func (c *CaptchaPool) Start() {
-	solveCaptcha := func() {
-		token, err := c.solve()
-		if err != nil {
-			return
-		}
-		c.push(Captcha{
-			created: time.Now(),
-			ttl:     c.ttl,
-			token:   token,
-		})
-	}
 	go func() {
 		ticker := time.NewTicker(c.refreshInterval)
 		defer ticker.Stop()
 
 		for range c.count {
-			go solveCaptcha()
+			go c.solveCaptcha()
 		}
 		if !c.refresh {
 			return
@@ -86,7 +75,7 @@ func (c *CaptchaPool) Start() {
 				return
 			case <-ticker.C:
 				for range c.count {
-					go solveCaptcha()
+					go c.solveCaptcha()
 				}
 			}
 		}
@@ -99,6 +88,24 @@ func (c *CaptchaPool) Stop() {
 		return
 	}
 	c.ctx.Done()
+}
+
+// Get a solved captcha from the pool
+func (c *CaptchaPool) GetToken() string {
+	return c.pop().token
+}
+
+// Runs captcha solver and pushes token to pool if successful
+func (c *CaptchaPool) solveCaptcha() {
+	token, err := c.solve()
+	if err != nil {
+		return
+	}
+	c.push(Captcha{
+		created: time.Now(),
+		ttl:     c.ttl,
+		token:   token,
+	})
 }
 
 // Internal function to safely push a new captcha to pool
@@ -123,9 +130,4 @@ func (c *CaptchaPool) pop() Captcha {
 		c.cond.Wait()
 	}
 	return c.pool.PopFront()
-}
-
-// Get a solved captcha from the pool
-func (c *CaptchaPool) GetToken() string {
-	return c.pop().token
 }
