@@ -38,7 +38,7 @@ type CaptchaPool struct {
 }
 
 // Creates a new captcha pool with given options
-// Solve is a blocking captcha solver that returns a captcha token string
+// Solve is a captcha solver that returns a captcha token string and an error
 func New(solve func() (string, error), options *Options) *CaptchaPool {
 	deque := new(deque.Deque[Captcha])
 	deque.SetBaseCap(options.Count)
@@ -126,6 +126,15 @@ func (c *CaptchaPool) pop() Captcha {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Remove expired captchas from pool
+	for c.pool.Len() > 0 {
+		cap := c.pool.Front()
+		if time.Now().After(cap.created.Add(cap.ttl)) {
+			c.pool.PopFront()
+		} else {
+			break 
+		}
+	}
 	if c.pool.Len() == 0 {
 		c.cond.Wait()
 	}
