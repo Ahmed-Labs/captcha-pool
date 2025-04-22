@@ -1,0 +1,6 @@
+github.com/2captcha/2captcha-go v1.1.10 h1:U3Y7VLwR9z5XpCMijB+FkhHRt6QikKnHDEy1uLQVCD8=
+github.com/2captcha/2captcha-go v1.1.10/go.mod h1:TsupeToBP0BPHfZOQpNDb61NKqtbBJ2ddptqSK2p9/M=
+github.com/gammazero/deque v1.0.0 h1:LTmimT8H7bXkkCy6gZX7zNLtkbz4NdS2z8LZuor3j34=
+github.com/gammazero/deque v1.0.0/go.mod h1:iflpYvtGfM3U8S8j+sZEKIak3SAKYpA5/SQewgfXDKo=
+github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
+github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=

@@ -2,72 +2,130 @@ package captchapool
 
 import (
 	"context"
+	"sync"
 	"time"
+
+	"github.com/gammazero/deque"
 )
 
-// CaptchaPool should be a queue essentially
-// A -> feeding that queue with captcha tokens
-// B -> Reading from queue and returning
-
-type CaptchaPoolOptions struct {
-	// Number of captcha tokens to generate
+type Options struct {
+	// Number of captcha tokens to generate at a time
 	Count int
-	// Perpetual refreshes captcha pool at given refresh rate
-	Perpetual bool
-	// Refresh is an interval duration for refreshing the pool with new captchas
-	RefreshRate time.Duration
+	// Refresh allows regenerating captcha pool at a given interval
+	Refresh bool
+	// Interval duration for generating new captchas to the pool
+	RefreshInterval time.Duration
 	// Duration of captcha validity, i.e. time to live
 	TTL time.Duration
 }
 
 type Captcha struct {
 	created time.Time
-	ttl time.Duration
-	token string
+	ttl     time.Duration
+	token   string
 }
 
 type CaptchaPool struct {
-	ctx context.Context
-	pool []Captcha
-	solve func() string
-	count int
-	perpetual bool
-	refreshRate time.Duration
-	ttl time.Duration
+	mu              sync.Mutex
+	cond            *sync.Cond
+	ctx             context.Context
+	pool            *deque.Deque[Captcha]
+	solve           func() (string, error)
+	count           int
+	refresh         bool
+	refreshInterval time.Duration
+	ttl             time.Duration
 }
 
 // Creates a new captcha pool with given options
 // Solve is a blocking captcha solver that returns a captcha token string
-func New(solve func() string, options *CaptchaPoolOptions) *CaptchaPool {
-	return &CaptchaPool{}
+func New(solve func() (string, error), options *Options) *CaptchaPool {
+	deque := new(deque.Deque[Captcha])
+	deque.SetBaseCap(options.Count)
+
+	newPool := &CaptchaPool{
+		ctx:             context.Background(),
+		pool:            deque,
+		solve:           solve,
+		count:           options.Count,
+		refresh:         options.Refresh,
+		refreshInterval: options.RefreshInterval,
+		ttl:             options.TTL,
+	}
+	newPool.cond = sync.NewCond(&newPool.mu)
+	return newPool
 }
 
 // Start solving captchas with specified configuration
-// Solved captchas are added to captcha pool
+// Solved captchas are added to the pool
 func (c *CaptchaPool) Start() {
-	// If not perpetual, get n tokens once and add them to pool
-	// go routine for captcha pool to run in the background
+	solveCaptcha := func() {
+		token, err := c.solve()
+		if err != nil {
+			return
+		}
+		c.push(Captcha{
+			created: time.Now(),
+			ttl:     c.ttl,
+			token:   token,
+		})
+	}
+	go func() {
+		ticker := time.NewTicker(c.refreshInterval)
+		defer ticker.Stop()
+
+		for range c.count {
+			go solveCaptcha()
+		}
+		if !c.refresh {
+			return
+		}
+		for {
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+				for range c.count {
+					go solveCaptcha()
+				}
+			}
+		}
+	}()
 }
 
-// Stop captcha pool execution
-// Use context to cancel pool execution
+// Stop captcha pool refresh execution
 func (c *CaptchaPool) Stop() {
-	
+	if !c.refresh {
+		return
+	}
+	c.ctx.Done()
 }
 
-// Internal function for pushing solved captcha to pool
+// Internal function to safely push a new captcha to pool
 func (c *CaptchaPool) push(captcha Captcha) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
+	if c.pool.Len() == c.count {
+		c.pool.PopFront()
+	}
+	c.pool.PushBack(captcha)
+	c.cond.Signal()
 }
 
-// Internal function for popping solved captcha from pool
-// Pop from queue but only if captcha valid
-// 		->  Blocks until a valid unexpired captcha is retrieved from the
+// Internal function to safely pop captcha from pool
+// Blocks until pool non-empty and unexpired captcha can be retrieved
 func (c *CaptchaPool) pop() Captcha {
-	return Captcha{}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.pool.Len() == 0 {
+		c.cond.Wait()
+	}
+	return c.pool.PopFront()
 }
 
 // Get a solved captcha from the pool
-func (c *CaptchaPool) Get() string {
+func (c *CaptchaPool) GetToken() string {
 	return c.pop().token
 }
