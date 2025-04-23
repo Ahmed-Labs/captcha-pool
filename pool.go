@@ -62,15 +62,15 @@ func New(solve func() (string, error), options *Options) *CaptchaPool {
 // Solved captchas are added to the pool
 func (c *CaptchaPool) Start() {
 	go func() {
-		ticker := time.NewTicker(c.refreshInterval)
-		defer ticker.Stop()
-
 		for range c.count {
 			go c.solveCaptcha()
 		}
 		if !c.refresh {
 			return
 		}
+		ticker := time.NewTicker(c.refreshInterval)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-c.ctx.Done():
