@@ -12,23 +12,24 @@ go get github.com/Ahmed-Labs/captcha-pool
 ## Usage
 
 ```go
-  solve := func() (string, error) {
-    // Wrap some captcha solver and return string, err
-    return "token", err
-  }
-	pool = captchapool.New(solve,
-		&captchapool.Options{
-			Count:           5,
-			Refresh:         true,
-			RefreshInterval: time.Second * 40,
-			TTL:             time.Second * 60,
-		},
-	)
+    solve := func() (string, error) {
+        // Some third party captcha solver
+        return "token", err
+    }
 
-	pool.Start()
-	defer pool.Stop()
+    pool = captchapool.New(solve,
+        &captchapool.Options{
+            Count:           5,
+            Refresh:         true,
+            RefreshInterval: time.Second * 40,
+            TTL:             time.Second * 60,
+        },
+    )
 
-  pool.GetToken()
+    pool.Start()
+    defer pool.Stop()
+
+    pool.GetToken()
 ```
 
 See `./example` for more detailed usage.
