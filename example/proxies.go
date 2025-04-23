@@ -9,7 +9,7 @@ import (
 )
 
 type Proxy struct {
-	Host     string // IP or domain
+	Host     string
 	Port     string
 	Username string
 	Password string
@@ -31,27 +31,6 @@ func (p *ProxyList) GetProxy() Proxy {
 	proxy := p.proxies[p.curr]
 	p.curr = (p.curr + 1)%len(p.proxies)
 	return proxy
-}
-
-func readProxies(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var proxies []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line != "" {
-			proxies = append(proxies, line)
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return proxies, nil
 }
 
 func parseProxy(raw string) (Proxy, error) {
@@ -84,7 +63,7 @@ func LoadProxies(path string) (*ProxyList, error) {
 		}
 		proxy, err := parseProxy(line)
 		if err != nil {
-			return nil, err // or log and continue
+			return nil, err
 		}
 		proxies = append(proxies, proxy)
 	}

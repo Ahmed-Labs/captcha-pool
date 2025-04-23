@@ -16,7 +16,7 @@ var proxies *ProxyList
 func buildSolver(params ...string) func() (string, error) {
 	// Set up anything needed initially / called once
 	client := api2captcha.NewClient(os.Getenv("2CAPTCHA_KEY"))
-	
+
 	// Solve
 	return func() (string, error) {
 		startTime := time.Now()
@@ -40,7 +40,7 @@ func buildSolver(params ...string) func() (string, error) {
 }
 
 func runTask(solved chan string) {
-	time.Sleep(time.Second * 30)
+	time.Sleep(time.Second * 60)
 	token := pool.GetToken()
 	solved <- token
 }
